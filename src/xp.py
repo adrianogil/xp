@@ -38,27 +38,49 @@ if len(sys.argv) == 3:
 		if row is None:
 			print '.'
 		else:
-			print row[0] # id_componentbykey
-			print row[1] # root_path
-			print row[2] # relative_path
-			print row[3] # component_key
+			# print row[0] # id_componentbykey
+			# print row[1] # root_path
+			# print row[2] # relative_path
+			# print row[3] # component_key
 
 			create_relative_path_cmd = 'mkdir -p ' + row[2]
 			subprocess.check_output(create_relative_path_cmd, shell=True)
 			copy_component_cmd = 'cp -r ' + row[1] + '/' + row[2]  + ' ' + row[2]
 			subprocess.check_output(copy_component_cmd, shell=True)
 
+			print 'Added component ' + row[3]
+
 	elif (sys.argv[1] == "--remove" or sys.argv[1] == '-r'):
 		# Remove a saved path
 		print 'deleting', sys.argv[2]
 		c.execute("DELETE FROM ComponentByKey WHERE component_key = ?", (sys.argv[2],))
 		conn.commit()
+	elif (sys.argv[1] == '--info' or sys.argv[1] == '-i'): # Add component to current path
+		# Open saved path
+		c.execute("SELECT * FROM ComponentByKey WHERE component_key LIKE ?", (sys.argv[2],))
+		row = c.fetchone()
+		if row is None:
+			print '.'
+		else:
+			# print row[0] # id_componentbykey
+			number_files_cmd = 'find ' + row[1] + '/' + row[2] + ' -type f | wc -l'
+			number_files=subprocess.check_output(number_files_cmd, shell=True)
+			number_files=number_files.strip()
+			print "Component " + row[3] + " {" # component_key
+			print "\tDirectory: " + row[1] # root_path
+			print "\tRelative Path: " + row[2] # relative_path
+			print '\tNumber of Files: ' + number_files
+			print "}"
+
 elif len(sys.argv) == 2:
 	if (sys.argv[1] == '--list' or sys.argv[1] == '-l'):
 		# List all saved path
 		c.execute("SELECT * from ComponentByKey ORDER BY component_key")
 		for row in c:
-			print str(row[2]) + ":" + str(row[1])
+			number_files_cmd = 'find ' + row[1] + '/' + row[2] + ' -type f | wc -l'
+			number_files=subprocess.check_output(number_files_cmd, shell=True)
+			number_files=number_files.strip()
+			print str(row[3]) + ":" + str(row[1] + ' [' + number_files + ' files]')
 	elif (sys.argv[1] == '--auto-list'):
 		# Auto List all saved path for Autocomplete use
 		c.execute("SELECT * from ComponentByKey")
