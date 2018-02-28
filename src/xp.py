@@ -21,19 +21,50 @@ c.execute('''
 	)
 ''')
 
-if len(sys.argv) == 4:
-	if (sys.argv[1] == '--save' or sys.argv[1] == '-s'):
-		# Save current path
-		#print "Saving Current Path " + os.getcwd() + " string " + sys.argv[2]
-		dict_path = {":root_path" : os.getcwd(), ":key": sys.argv[2], ":relative_path" : sys.argv[3]}
-		#print dict_path
-		c.execute("INSERT INTO ComponentByKey (root_path,component_key,relative_path) VALUES (:root_path,:component_key,:relative_path)", (os.getcwd(), sys.argv[2], sys.argv[3]))
+def list_components(args, extra_args):
+	# List all saved path
+	c.execute("SELECT * from ComponentByKey ORDER BY component_key")
+	for row in c:
+		number_files_cmd = 'find ' + row[1] + '/' + row[2] + ' -type f | wc -l'
+		number_files=subprocess.check_output(number_files_cmd, shell=True)
+		number_files=number_files.strip()
+		print str(row[3]) + ":" + str(row[1] + ' [' + number_files + ' files]')
+
+def get_auto_list(args, extra_args):
+	# Auto List all saved path for Autocomplete use
+	c.execute("SELECT * from ComponentByKey")
+	strList = ''
+	for row in c:
+		strList = strList + ' ' +  str(row[3])
+	print strList
+
+def get_list_args(args, extra_args):
+	print list_args
+
+def save_component(args, extra_args):
+	# Save current path
+	if len(args) == 2:
+		component_path = os.getcwd()
+		component_key = args[0]
+		component_relative_path = args[1]
+
+		save_data = (component_path,
+					 component_key,
+					 component_relative_path)
+
+		c.execute("INSERT INTO ComponentByKey " +\
+			"(root_path,component_key,relative_path) VALUES " +\
+			"(:root_path,:component_key,:relative_path)",
+			save_data)
 		conn.commit()
 		print 'Saved component in database'
-if len(sys.argv) == 3:
-	if (sys.argv[1] == '--add' or sys.argv[1] == '-a'): # Add component to current path
-		# Open saved path
-		c.execute("SELECT * FROM ComponentByKey WHERE component_key LIKE ?", (sys.argv[2],))
+
+def add_component(args, extra_args):
+	# Open saved path
+	if len(args) == 1:
+		get_query = "SELECT * FROM ComponentByKey WHERE component_key LIKE ?"
+		get_data = (args[0],)
+		c.execute(get_query, get_data)
 		row = c.fetchone()
 		if row is None:
 			print '.'
@@ -50,14 +81,17 @@ if len(sys.argv) == 3:
 
 			print 'Added component ' + row[3]
 
-	elif (sys.argv[1] == "--remove" or sys.argv[1] == '-r'):
-		# Remove a saved path
-		print 'deleting', sys.argv[2]
-		c.execute("DELETE FROM ComponentByKey WHERE component_key = ?", (sys.argv[2],))
+def remove_component(args, extra_args):
+	# Remove a saved path
+	if len(args) == 1:
+		print 'deleting', args[0]
+		c.execute("DELETE FROM ComponentByKey WHERE component_key = ?", (args[0],))
 		conn.commit()
-	elif (sys.argv[1] == '--info' or sys.argv[1] == '-i'): # Add component to current path
-		# Open saved path
-		c.execute("SELECT * FROM ComponentByKey WHERE component_key LIKE ?", (sys.argv[2],))
+
+def get_info_about_component(args, extra_args):
+	# Open saved path
+	if len(args) == 1:
+		c.execute("SELECT * FROM ComponentByKey WHERE component_key LIKE ?", (args[0],))
 		row = c.fetchone()
 		if row is None:
 			print '.'
@@ -72,25 +106,46 @@ if len(sys.argv) == 3:
 			print '\tNumber of Files: ' + number_files
 			print "}"
 
-elif len(sys.argv) == 2:
-	if (sys.argv[1] == '--list' or sys.argv[1] == '-l'):
-		# List all saved path
-		c.execute("SELECT * from ComponentByKey ORDER BY component_key")
-		for row in c:
-			number_files_cmd = 'find ' + row[1] + '/' + row[2] + ' -type f | wc -l'
-			number_files=subprocess.check_output(number_files_cmd, shell=True)
-			number_files=number_files.strip()
-			print str(row[3]) + ":" + str(row[1] + ' [' + number_files + ' files]')
-	elif (sys.argv[1] == '--auto-list'):
-		# Auto List all saved path for Autocomplete use
-		c.execute("SELECT * from ComponentByKey")
-		strList = ''
-		for row in c:
-			strList = strList + ' ' +  str(row[3])
-		print strList
-	elif (sys.argv[1] == '--list-args'):
-		print list_args
+commands_parse = {
+    '-s'          : save_component,
+    '-a'          : add_component,
+    '-r'          : remove_component,
+    '-i'          : get_info_about_component,
+    '-l'		  : list_components,
+    '--list'	  : list_components,
+    '--info'      : get_info_about_component,
+    '--remove'    : remove_component,
+    '--auto-list' : get_auto_list,
+    '--list-args' : get_list_args,
+}
 
+def parse_arguments():
+
+    args = {}
+
+    last_key = ''
+
+    for i in xrange(1, len(sys.argv)):
+        a = sys.argv[i]
+        if a[0] == '-' and not utils.is_float(a):
+            last_key = a
+            args[a] = []
+        elif last_key != '':
+            arg_values = args[last_key]
+            arg_values.append(a)
+            args[last_key] = arg_values
+
+    return args
+
+def parse_commands(args):
+    # print('DEBUG: Parsing args: ' + str(args))
+    for a in args:
+        if a in commands_parse:
+            commands_parse[a](args[a], args)
+
+args = parse_arguments()
+parse_commands(args)
 
 # We can also close the cursor if we are done with it
 c.close()
+
