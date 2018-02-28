@@ -1,6 +1,8 @@
 #!/usr/bin/env python
 import sys, sqlite3, os, commands, subprocess
 
+import utils
+
 list_args = '--save -s --add -a --remove -r --info -i'
 
 # Open Connection
